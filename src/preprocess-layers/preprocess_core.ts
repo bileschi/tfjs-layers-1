@@ -95,6 +95,12 @@ export class OneHot extends PreprocessingLayer {
 }
 serialization.SerializationMap.register(OneHot);
 
+// `VocabLayerOptimizer` optimizes a `VocabularyLayer`.  It is implemented
+// external to the layer itself, mirroring how, e.g., `Dense` layers are
+// optimized via back-propagation via optimzers external to the layer itself.
+//
+// This class uses a very simple counting implementation, keeping track of every
+// unique string token it has seen, and how many times it has seen it.
 export class VocabLayerOptimizer extends Serializable {
   static className = 'VocabLayerOptimizer';
   public wordCount: Map<string, number>;
@@ -115,9 +121,10 @@ export class VocabLayerOptimizer extends Serializable {
   }
 
 
+  // Modifies this optimizer's counts of each unique string.
   public updateCounts(words: StringTensor) {
     for (const word of words.stringValues) {
-      // if string is a key in wordCount, update it.
+      // If string is a key in wordCount, update it.
       if (this.wordCount.has(word)) {
         this.wordCount.set(word, this.wordCount.get(word) + 1);
       } else {
