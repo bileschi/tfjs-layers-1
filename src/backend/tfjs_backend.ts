@@ -497,19 +497,11 @@ function stringGather<T extends StringTensor>(
   // TODO(bileschi): Create a helper function for building string tensors
   // without setting values.
   const result = stringTensor(Array(newSize).fill(null), newShape);
-  console.log(`newShape ${newShape}`);
-
   for (let i = 0; i < result.size; ++i) {
-    console.log(`i ${i}`);
-    console.log(`result.shape ${result.shape}`);
     const newLoc = result.indexToLoc(i);
-    console.log(`newLoc ${newLoc}`);
     const originalLoc: number[] = newLoc.slice();
     originalLoc[axis] = indicesValues[newLoc[axis]];
-    console.log(`originalLoc ${originalLoc}`);
-    console.log(`x ${JSON.stringify(x)}`);
     const originalIndex = x.locToIndex(originalLoc);
-    console.log(`originalIndex ${originalIndex}`);
     result.set(x.get(originalIndex), i);
   }
   return result as T;

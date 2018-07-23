@@ -128,6 +128,22 @@ describeMathCPUAndGPU('Vocab Layer: Symbolic', () => {
   });
 });
 
+describeMathCPUAndGPU('Vocab Layer: isTrainable', () => {
+  it('No optimizer : not trainable.', () => {
+    const layer =
+        tfl.layers.vocab({knownVocabSize: 10, hashVocabSize: 10}) as VocabLayer;
+    expect(layer.isTrainable()).toBe(false);
+  });
+  it('Set optimizer : trainable.', () => {
+    const layer = tfl.layers.vocab({
+      knownVocabSize: 10,
+      hashVocabSize: 10,
+      optimizer: new VocabLayerOptimizer()
+    }) as VocabLayer;
+    expect(layer.isTrainable()).toBe(true);
+  });
+});
+
 describeMathCPUAndGPU('Vocab Layer: Tensor', () => {
   const knownVocabSize = 100;
   it('Call with known tokens', () => {
@@ -219,19 +235,19 @@ describeMathCPUAndGPU('Vocab Layer: fitUnsupervised', () => {
       hashVocabSize: 1,
       optimizer: new VocabLayerOptimizer()
     }) as VocabLayer;
-    // one fit with '1x'
+    // One fit with '1x'
     vocabLayer.fitUnsupervised(tfl.preprocessing.stringTensor2d([['1x']]));
-    // two fits with '2x'
+    // Two fits with '2x'
     vocabLayer.fitUnsupervised(tfl.preprocessing.stringTensor2d([['2x']]));
     vocabLayer.fitUnsupervised(tfl.preprocessing.stringTensor2d([['2x']]));
-    // three fits with '3x'
+    // Three fits with '3x'
     vocabLayer.fitUnsupervised(tfl.preprocessing.stringTensor2d([['3x']]));
     vocabLayer.fitUnsupervised(tfl.preprocessing.stringTensor2d([['3x']]));
     vocabLayer.fitUnsupervised(tfl.preprocessing.stringTensor2d([['3x']]));
     const xTest =
         tfl.preprocessing.stringTensor2d([['3x'], ['2x'], ['1x'], ['0x']]);
-    // '3x' should be in the 0 spot, '2x'.  Everything else should map to the
-    // hash bucket.
+    // '3x' should map to 0, '2x' to 1.  Everything else should map to the hash
+    // bucket, which is 2.
     const expectedOutput = tensor2d([[0], [1], [2], [2]], [4, 1], 'int32');
     expectTensorsClose(vocabLayer.apply(xTest) as Tensor, expectedOutput);
   });

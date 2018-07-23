@@ -12,7 +12,7 @@
 
 // tslint:disable:max-line-length
 import * as tfc from '@tensorflow/tfjs-core';
-import {io, ModelPredictConfig, Optimizer, Scalar, serialization, Tensor, Tensor1D, tensor1d, util} from '@tensorflow/tfjs-core';
+import {io, ModelPredictConfig, Optimizer, Scalar, scalar, serialization, Tensor, Tensor1D, tensor1d, util} from '@tensorflow/tfjs-core';
 
 import {getScalar} from '../backend/state';
 import * as K from '../backend/tfjs_backend';
@@ -1387,6 +1387,7 @@ export class Model extends Container {
       shuffle?: boolean|string, callbackMetrics?: string[],
       initialEpoch?: number, stepsPerEpoch?: number,
       validationSteps?: number): Promise<History> {
+    console.log('fitLoop A');
     if (batchSize == null) {
       batchSize = 32;
     }
@@ -1773,7 +1774,7 @@ export class Model extends Container {
     //  Since the function are defined below in the scope, we don't have
     //  equivalents of PyKeras's `_make_train_funciton`.
 
-    // Creat a function that performs the following actions:
+    // Create a function that performs the following actions:
     //   1) computes the losses,
     //   2) add them to get the total loss,
     //   3) call the optimizer which computes the gradients of the Model's
@@ -1844,13 +1845,41 @@ export class Model extends Container {
         return totalLoss as Scalar;
       };
 
+      // Update trainable pre-processing layers, if there are any:
+      // For all the layers, if the layer is preprocessing then determine the
+      // inputs to that layer and call .fitUnsupervised(...) with those
+      // inputs.
+      for (const layer of this.layers) {
+        if ((layer instanceof PreprocessingLayer) && (layer.isTrainable())) {
+          console.log('THIS IS WHERE I WOULD CALL LAYER DOT TRAIN');
+          console.log(`layer.name ${layer.name}`);
+          console.log(`data[0] ${JSON.stringify(data[0])}`);
+          // We need to get the input to this layer.  To do so, we create a
+          // temporary model with the same inputs as the whole model, but the
+          // output is the input to the preprocessing layer.
+          const tempInternalModel = new Model({
+            inputs: this.inputs,
+            outputs: layer.input,
+            name: 'tempModelForUnsupervised'
+          });
+          layer.fitUnsupervised(tempInternalModel.predict(data));
+        }
+      }
+
       const variables = this.collectedTrainableWeights.map(
           param => param.read() as tfc.Variable);
       const returnCost = true;
-      const totalLossValue =
-          this.optimizer.minimize(totalLossFunction, returnCost, variables);
+      // Only do backprop-style optimization if there are trainable variables.
+      if (variables.length === 0) {
+        console.log('no trainable variables');
+        // TODO(bileschi): There may be a more appropriate return value here.
+        return [scalar(0)].concat(metricsValues);
+      } else {
+        const totalLossValue =
+            this.optimizer.minimize(totalLossFunction, returnCost, variables);
 
-      return [totalLossValue].concat(metricsValues);
+        return [totalLossValue].concat(metricsValues);
+      }
     };
 
     const outLabels = this.getDedupedMetricsNames();

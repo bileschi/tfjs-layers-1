@@ -31,10 +31,24 @@ export interface OneHotLayerConfig extends LayerConfig {
 
 /**
  * Preprocessing layers are distinct from Layers in that they are not
- * affected by back-propagation.  They are not affected by .fit.  They may be
- * affected by `Model.fitUnsupervised`.
+ * fit via back-propagation. Individual preprocessing layers may implement their
+ * own `layer.fitUnsupervised()` method which will be called during
+ * `Model.fit()`.
  */
-export abstract class PreprocessingLayer extends Layer {}
+export abstract class PreprocessingLayer extends Layer {
+  // If set, this optimizer will be used to update the preprocessing layer
+  // during `layer.fit` and `model.fitUnsupervised()`.
+  protected optimizer: {} = null;
+
+  // Assumes if an optimizer is set, then the preprocessing layer is trainable.
+  public isTrainable(): boolean {
+    return ((this.optimizer !== undefined) && (this.optimizer !== null));
+  }
+
+  // Call to update internal representation to more closely match x.
+  public fitUnsupervised(x: Tensor|StringTensor|
+                         Array<Tensor|StringTensor>): void {}
+}
 
 /**
  * Requires input of shape [batch] or [batch, 1].  Produces output of shape
@@ -199,7 +213,7 @@ export class VocabLayer extends PreprocessingLayer {
   readonly hashVocabSize: number;
   readonly knownVocabSize: number;
   private vocabInitializer: Initializer;
-  private optimizer: VocabLayerOptimizer;
+  protected optimizer: VocabLayerOptimizer;
 
   readonly DEFAULT_VOCAB_INITIALIZER: InitializerIdentifier = 'rainbowVocab';
 
@@ -215,7 +229,7 @@ export class VocabLayer extends PreprocessingLayer {
     this.hashVocabSize = config.hashVocabSize | 0;
     this.vocabInitializer = getInitializer(
         config.vocabInitializer || this.DEFAULT_VOCAB_INITIALIZER);
-    // Like Model, optimzer may be undefined here if it was not provided via
+    // Like Model, optimizer may be undefined here if it was not provided via
     // config.
     this.optimizer = config.optimizer;
   }

@@ -1,12 +1,14 @@
 // Show off VocabLayer when  you get to this point.
 
 
-import {Tensor, tensor2d} from '@tensorflow/tfjs-core';
+import {Tensor, tensor2d, test_util} from '@tensorflow/tfjs-core';
 import {expectValuesInRange} from '@tensorflow/tfjs-core/dist/test_util';
 
 import * as tfl from '../index';
 import {initializers} from '../index';
-import {describeMathCPUAndGPU} from '../utils/test_utils';
+import {getInitializer} from '../initializers';
+import {VocabLayerOptimizer} from '../preprocess-layers/preprocess_core';
+import {describeMathCPU, describeMathCPUAndGPU} from '../utils/test_utils';
 import {expectTensorsClose} from '../utils/test_utils';
 
 describeMathCPUAndGPU('String preproc : Model.predict', () => {
@@ -78,44 +80,46 @@ describeMathCPUAndGPU('String preproc : Model.predict', () => {
 
 //  ORIGINAL SKETCH
 // describeMathCPUAndGPU('String Preproc Model.fit', () => {
-/*
-describeMathCPU('String Preproc Model.fit', () => {
-  fit('no need to compile', async done => {
-    // Define the vocabulary initializer
-    const vocabInitializer = initializers.knownVocab(
-        {strings: ['hello', 'world', 'こんにちは', '世界']});
-    // Define a Sequential model with just a vocab layer
-    const knownVocabSize = 4;
-    const hashVocabSize = 1;
-    const vocabModel = tfl.sequential({
-      layers: [tfl.layers.vocab({
-        name: 'myVocabLayer',
-        knownVocabSize,
-        hashVocabSize,
-        vocabInitializer,
-        // TODO(bileschi): Load this from tfl instead of directly.
-        optimizer: new VocabLayerOptimizer(),
-        inputShape: [2]  // two words per example
-      })]
-    });
-    // Compile the model with an optimizer for the vocab layer.
-    vocabModel.compile({optimizer: 'SGD', loss: 'meanSquaredError'});
 
-    const trainInputs = tfl.preprocessing.stringTensor2d(
-        [['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']]);
-    // Fit the model to a tensor of strings
-    console.log('AAA');
-    vocabModel.fit(trainInputs, null, {batchSize: 1, epochs: 1}).catch(err => {
-      done.fail(err.stack);
-    });
-    console.log('BBB');
-    // call predict on a string of inputs and expect the new vocab values.
-    const testInputs = tfl.preprocessing.stringTensor2d(
-        [['a', 'b'], ['c', 'd'], ['hello', 'world']]);
-    const testOutputs = vocabModel.predict(testInputs);
-    test_util.expectArraysClose(
-        testOutputs as Tensor, tensor2d([[0, 1], [2, 3], [4, 4]]));
-    done();
-  });
+describeMathCPU('String Preproc Model.fit', () => {
+  it('Fit a model with just a vocab layer. overrides initializer',
+     async done => {
+       // Define a Sequential model with just one layer:  Vocabulary.
+       const vocabModel = tfl.sequential({
+         layers: [tfl.layers.vocab({
+           name: 'myVocabLayer',
+           knownVocabSize: 4,
+           hashVocabSize: 1,
+           vocabInitializer: getInitializer({
+             className: 'KnownVocab',
+             config: {strings: ['hello', 'world', 'こんにちは', '世界']}
+           }),
+           // TODO(bileschi): Use tfl.preprocessing.vocabLayerOptimizer instead
+           // of direct access.
+           optimizer: new VocabLayerOptimizer(),
+           inputShape: [2]  // two words per example
+         })]
+       });
+       // Compile the model.
+       // TODO(bileschi): It should be possible to compile with null / null
+       // here.
+       vocabModel.compile({optimizer: 'SGD', loss: 'meanSquaredError'});
+       const trainInputs = tfl.preprocessing.stringTensor2d(
+           [['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']]);
+       // Fit the model to a tensor of strings.
+       await vocabModel.fit(trainInputs, null, {batchSize: 1, epochs: 1})
+           .then(history => {
+             const testInputs = tfl.preprocessing.stringTensor2d(
+                 [['a', 'b'], ['c', 'd'], ['hello', 'world']]);
+             const testOutputs = vocabModel.predict(testInputs);
+             test_util.expectArraysClose(
+                 testOutputs as Tensor,
+                 tensor2d([[0, 1], [2, 3], [4, 4]], [3, 2], 'int32'));
+             done();
+           })
+           .catch(err => {
+             console.log(`fit failed, got err = ${err}`);
+             done.fail(err.stack);
+           });
+     });
 });
-*/
