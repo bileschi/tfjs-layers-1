@@ -82,44 +82,80 @@ describeMathCPUAndGPU('String preproc : Model.predict', () => {
 // describeMathCPUAndGPU('String Preproc Model.fit', () => {
 
 describeMathCPU('String Preproc Model.fit', () => {
-  it('Fit a model with just a vocab layer. overrides initializer',
-     async done => {
-       // Define a Sequential model with just one layer:  Vocabulary.
-       const vocabModel = tfl.sequential({
-         layers: [tfl.layers.vocab({
-           name: 'myVocabLayer',
-           knownVocabSize: 4,
-           hashVocabSize: 1,
-           vocabInitializer: getInitializer({
-             className: 'KnownVocab',
-             config: {strings: ['hello', 'world', 'こんにちは', '世界']}
-           }),
-           // TODO(bileschi): Use tfl.preprocessing.vocabLayerOptimizer instead
-           // of direct access.
-           optimizer: new VocabLayerOptimizer(),
-           inputShape: [2]  // two words per example
-         })]
-       });
-       // Compile the model.
-       // TODO(bileschi): It should be possible to compile with null / null
-       // here.
-       vocabModel.compile({optimizer: 'SGD', loss: 'meanSquaredError'});
-       const trainInputs = tfl.preprocessing.stringTensor2d(
-           [['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']]);
-       // Fit the model to a tensor of strings.
-       await vocabModel.fit(trainInputs, null, {batchSize: 1, epochs: 1})
-           .then(history => {
-             const testInputs = tfl.preprocessing.stringTensor2d(
-                 [['a', 'b'], ['c', 'd'], ['hello', 'world']]);
-             const testOutputs = vocabModel.predict(testInputs);
-             test_util.expectArraysClose(
-                 testOutputs as Tensor,
-                 tensor2d([[0, 1], [2, 3], [4, 4]], [3, 2], 'int32'));
-             done();
-           })
-           .catch(err => {
-             console.log(`fit failed, got err = ${err}`);
-             done.fail(err.stack);
-           });
-     });
+  it('Fit a model with just a vocab layer.', async done => {
+    // Define a Sequential model with just one layer:  Vocabulary.
+    const vocabModel = tfl.sequential({
+      layers: [tfl.layers.vocab({
+        knownVocabSize: 4,
+        hashVocabSize: 1,
+        // TODO(bileschi): Use tfl.preprocessing.vocabLayerOptimizer instead
+        // of direct access.
+        optimizer: new VocabLayerOptimizer(),
+        inputShape: [2]  // two words per example
+      })]
+    });
+    // Compile the model.
+    // TODO(bileschi): It should be possible to compile with null / null
+    // here.
+    vocabModel.compile({optimizer: 'SGD', loss: 'meanSquaredError'});
+    const trainInputs = tfl.preprocessing.stringTensor2d(
+        [['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']]);
+    // Fit the model to a tensor of strings.
+    await vocabModel.fit(trainInputs, null, {batchSize: 1, epochs: 1})
+        .then(history => {
+          const testInputs = tfl.preprocessing.stringTensor2d(
+              [['a', 'b'], ['c', 'd'], ['hello', 'world']]);
+          console.log('FIT COMPLETE');
+          const testOutputs = vocabModel.predict(testInputs);
+          test_util.expectArraysClose(
+              testOutputs as Tensor,
+              tensor2d([[0, 1], [2, 3], [4, 4]], [3, 2], 'int32'));
+          done();
+        })
+        .catch(err => {
+          done.fail(err.stack);
+        });
+  });
+
+
+  it('Fit a model with just a vocab layer. Overrides initializer',
+      async done => {
+        // Define a Sequential model with just one layer:  Vocabulary.
+        const vocabModel = tfl.sequential({
+          layers: [tfl.layers.vocab({
+            name: 'myVocabLayer',
+            knownVocabSize: 4,
+            hashVocabSize: 1,
+            vocabInitializer: getInitializer({
+              className: 'KnownVocab',
+              config: {strings: ['hello', 'world', 'こんにちは', '世界']}
+            }),
+            // TODO(bileschi): Use tfl.preprocessing.vocabLayerOptimizer instead
+            // of direct access.
+            optimizer: new VocabLayerOptimizer(),
+            inputShape: [2]  // two words per example
+          })]
+        });
+        // Compile the model.
+        // TODO(bileschi): It should be possible to compile with null / null
+        // here.
+        vocabModel.compile({optimizer: 'SGD', loss: 'meanSquaredError'});
+        const trainInputs = tfl.preprocessing.stringTensor2d(
+            [['a', 'a'], ['a', 'a'], ['a', 'a'], ['a', 'a']]);
+        // Fit the model to a tensor of strings.
+        await vocabModel.fit(trainInputs, null, {batchSize: 1, epochs: 1})
+            .then(history => {
+              const testInputs = tfl.preprocessing.stringTensor2d(
+                  [['a', 'a'], ['a', 'a'], ['hello', 'world']]);
+              console.log('FIT COMPLETE');
+              const testOutputs = vocabModel.predict(testInputs);
+              test_util.expectArraysClose(
+                  testOutputs as Tensor,
+                  tensor2d([[0, 0], [0, 0], [4, 4]], [3, 2], 'int32'));
+              done();
+            })
+            .catch(err => {
+              done.fail(err.stack);
+            });
+      });
 });

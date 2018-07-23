@@ -1387,7 +1387,6 @@ export class Model extends Container {
       shuffle?: boolean|string, callbackMetrics?: string[],
       initialEpoch?: number, stepsPerEpoch?: number,
       validationSteps?: number): Promise<History> {
-    console.log('fitLoop A');
     if (batchSize == null) {
       batchSize = 32;
     }
@@ -1851,9 +1850,6 @@ export class Model extends Container {
       // inputs.
       for (const layer of this.layers) {
         if ((layer instanceof PreprocessingLayer) && (layer.isTrainable())) {
-          console.log('THIS IS WHERE I WOULD CALL LAYER DOT TRAIN');
-          console.log(`layer.name ${layer.name}`);
-          console.log(`data[0] ${JSON.stringify(data[0])}`);
           // We need to get the input to this layer.  To do so, we create a
           // temporary model with the same inputs as the whole model, but the
           // output is the input to the preprocessing layer.
@@ -1862,7 +1858,7 @@ export class Model extends Container {
             outputs: layer.input,
             name: 'tempModelForUnsupervised'
           });
-          layer.fitUnsupervised(tempInternalModel.predict(data));
+          layer.fitUnsupervised(tempInternalModel.predict(inputs));
         }
       }
 
