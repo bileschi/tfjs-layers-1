@@ -19,7 +19,6 @@ import {serialization, Tensor, tidy} from '@tensorflow/tfjs-core';
 import {getScalar} from '../backend/state';
 import * as K from '../backend/tfjs_backend';
 import {nameScope} from '../common';
-import {Layer, LayerConfig, SymbolicTensor} from '../engine/topology';
 import {InputSpec, Layer, LayerConfig, SymbolicTensor} from '../engine/topology';
 import {NotImplementedError, ValueError} from '../errors';
 import {StringTensor} from '../preprocess-layers/string_tensor';
@@ -386,7 +385,7 @@ export class Bidirectional extends Wrapper {
       |SymbolicTensor[]|StringTensor|StringTensor[] {
     let initialState: Tensor[]|SymbolicTensor[]|StringTensor[] =
         kwargs == null ? null : kwargs['initialState'];
-    let constants: Tensor[]|SymbolicTensor[] =
+    let constants: Tensor[]|SymbolicTensor[]|StringTensor[] =
         kwargs == null ? null : kwargs['constants'];
     if (kwargs == null) {
       kwargs = {};
@@ -407,7 +406,7 @@ export class Bidirectional extends Wrapper {
         constants == null) {
       return super.apply(inputs, kwargs);
     }
-    const additionalInputs: Array<Tensor|SymbolicTensor> = [];
+    const additionalInputs: Array<Tensor|SymbolicTensor|StringTensor> = [];
     const additionalSpecs: InputSpec[] = [];
     if (initialState != null) {
       const numStates = initialState.length;

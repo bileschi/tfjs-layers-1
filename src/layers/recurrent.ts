@@ -58,13 +58,16 @@ import {deserialize} from './serialization';
  *   `constants` is provided.
  */
 export function standardizeArgs(
-    inputs: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[],
-    initialState: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[],
-    constants: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[],
+    inputs: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[]|StringTensor|
+    StringTensor[],
+    initialState: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[]|StringTensor|
+    StringTensor[],
+    constants: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[]|StringTensor|
+    StringTensor[],
     numConstants?: number): {
-  inputs: Tensor|SymbolicTensor,
-  initialState: Tensor[]|SymbolicTensor[],
-  constants: Tensor[]|SymbolicTensor[]
+  inputs: Tensor|SymbolicTensor|StringTensor,
+  initialState: Tensor[]|SymbolicTensor[]|StringTensor[],
+  constants: Tensor[]|SymbolicTensor[]|StringTensor[]
 } {
   if (Array.isArray(inputs)) {
     if (initialState != null || constants != null) {
@@ -82,12 +85,13 @@ export function standardizeArgs(
     inputs = inputs[0];
   }
 
-  function toListOrNull(x: Tensor|Tensor[]|SymbolicTensor|
-                        SymbolicTensor[]): Tensor[]|SymbolicTensor[] {
+  function toListOrNull(x: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[]|
+                        StringTensor|StringTensor[]): Tensor[]|SymbolicTensor[]|
+      StringTensor[] {
     if (x == null || Array.isArray(x)) {
-      return x as Tensor[] | SymbolicTensor[];
+      return x as Tensor[] | SymbolicTensor[] | StringTensor[];
     } else {
-      return [x] as Tensor[] | SymbolicTensor[];
+      return [x] as Tensor[] | SymbolicTensor[] | StringTensor[];
     }
   }
 
@@ -574,13 +578,15 @@ export class RNN extends Layer {
   }
 
   apply(
-      inputs: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[], kwargs?: Kwargs):
-      Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[]|StringTensor
-      |StringTensor[]|StringTensor|StringTensor[] {
+      inputs: Tensor|Tensor[]|SymbolicTensor|SymbolicTensor[]|StringTensor|
+      StringTensor[],
+      kwargs?: Kwargs): Tensor|Tensor[]|SymbolicTensor
+      |SymbolicTensor[]|StringTensor|StringTensor[]|StringTensor
+      |StringTensor[] {
     // TODO(cais): Figure out whether initialState is in kwargs or inputs.
-    let initialState: Tensor[]|SymbolicTensor[] =
+    let initialState: Tensor[]|SymbolicTensor[]|StringTensor[] =
         kwargs == null ? null : kwargs['initialState'];
-    let constants: Tensor[]|SymbolicTensor[] =
+    let constants: Tensor[]|SymbolicTensor[]|StringTensor[] =
         kwargs == null ? null : kwargs['constants'];
     if (kwargs == null) {
       kwargs = {};
@@ -596,7 +602,7 @@ export class RNN extends Layer {
     // `SymbolicTensor`s, then add them to the inputs and temporarily modify the
     // input_spec to include them.
 
-    let additionalInputs: Array<Tensor|SymbolicTensor> = [];
+    let additionalInputs: Array<Tensor|SymbolicTensor|StringTensor> = [];
     let additionalSpecs: InputSpec[] = [];
     if (initialState != null) {
       kwargs['initialState'] = initialState;
