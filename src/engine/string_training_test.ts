@@ -76,11 +76,6 @@ describeMathCPUAndGPU('String preproc : Model.predict', () => {
   });
 });
 
-
-
-//  ORIGINAL SKETCH
-// describeMathCPUAndGPU('String Preproc Model.fit', () => {
-
 describeMathCPU('String Preproc Model.fit', () => {
   it('Fit a model with just a vocab layer.', async done => {
     // Define a Sequential model with just one layer:  Vocabulary.
@@ -117,8 +112,7 @@ describeMathCPU('String Preproc Model.fit', () => {
         });
   });
 
-
-  it('Fit a model with just a vocab layer. Overrides initializer',
+  it('Fit vocab layer overrides initializer',
       async done => {
         // Define a Sequential model with just one layer:  Vocabulary.
         const vocabModel = tfl.sequential({
