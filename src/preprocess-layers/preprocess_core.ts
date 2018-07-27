@@ -13,7 +13,7 @@
  */
 
 // tslint:disable:max-line-length
-import {oneHot, serialization, Tensor, tensor, tidy,} from '@tensorflow/tfjs-core';
+import {add, cast, div, oneHot, scalar, serialization, sub, Tensor, tensor, tidy, Variable, variable} from '@tensorflow/tfjs-core';
 import {ConfigDict, Serializable} from '@tensorflow/tfjs-core/dist/serialization';
 
 import {Layer, LayerConfig} from '../engine/topology';
@@ -21,6 +21,7 @@ import {ValueError} from '../errors';
 import {getInitializer, Initializer, InitializerIdentifier} from '../initializers';
 import {Kwargs, Shape} from '../types';
 import * as type_utils from '../utils/types_utils';
+import {LayerVariable} from '../variables';
 
 import {StringTensor} from './string_tensor';
 
@@ -108,6 +109,111 @@ export class OneHot extends PreprocessingLayer {
   }
 }
 serialization.SerializationMap.register(OneHot);
+
+export interface ZeroMeanConfig extends LayerConfig {
+  optimizer?: ZeroMeanOptimizer;
+}
+
+export class ZeroMeanOptimizer extends Serializable {
+  static className = 'ZeroMeanOptimizer';
+  public count: Variable;
+  public meanEstimate: Variable;
+
+  constructor() {
+    super();
+    this.count = variable(scalar(0));
+    this.meanEstimate = null;  // Set on first update to get the right shape.
+  }
+
+  public update(x: Tensor, layerMean: LayerVariable) {
+    if (this.meanEstimate == null) {
+      this.meanEstimate =
+          variable(x.mean(0, true), false, 'optimizerMean', 'float32');
+    }
+    tidy(() => {
+      // count += num_samples.
+      this.count.assign(add(this.count, x.shape[0]));
+      // delta = x - mean.
+      // mean = mean + (delta / count).
+      this.meanEstimate.assign(
+          add(this.meanEstimate,
+              div(sub(x.mean(0, true), this.meanEstimate), this.count)));
+      layerMean.write(this.meanEstimate);
+    });
+  }
+
+  getConfig(): ConfigDict {
+    return {};
+  }
+
+  static fromConfig<T extends serialization.Serializable>(
+      cls: serialization.SerializableConstructor<T>,
+      config: serialization.ConfigDict): T {
+    return new cls();
+  }
+}
+
+
+export class ZeroMean extends PreprocessingLayer {
+  static className = 'ZeroMean';
+  // Estimate of sample mean.
+  private meanEstimate: LayerVariable = null;
+  private meanInitializer: Initializer;
+  protected optimizer: ZeroMeanOptimizer;
+
+  constructor(config: ZeroMeanConfig) {
+    super(config);
+    this.meanInitializer = getInitializer('zeros');
+    // Like Model, optimizer may be undefined here if it was not provided via
+    // config.
+    this.optimizer = config.optimizer;
+  }
+
+  public build(inputShape: Shape|Shape[]): void {
+    inputShape = type_utils.getExactlyOneShape(inputShape);
+    const meanShape = inputShape.slice();
+    meanShape[0] = 1;  // Reduce over batch dimension.
+    if (this.meanEstimate == null) {
+      // Initial estimate of the mean is zero
+      this.meanEstimate = this.addWeight(
+          'mean', meanShape, 'float32', this.meanInitializer, null, true, null);
+    }
+    this.built = true;
+  }
+
+  call(inputs: Tensor|Tensor[], kwargs: Kwargs): Tensor|Tensor[] {
+    let inputTensor: Tensor;
+    if (Array.isArray(inputs)) {
+      if (inputs.length !== 1) {
+        throw new ValueError(
+            `ZeroMean layer expected one tensor input; got ${inputs.length}`);
+      }
+      inputTensor = cast(inputs[0], 'float32');
+    } else {
+      inputTensor = cast(inputs, 'float32');
+    }
+    return tidy(() => {
+      return inputTensor.sub(this.meanEstimate.read());
+    });
+  }
+
+  // TODO(bileschi): This should probably return a `History` or some other
+  // way of keeping track of what happens.
+  public fitUnsupervised(x: Tensor): void {
+    if (this.optimizer) {
+      if (!(this.built)) {
+        this.build(x.shape);
+      }
+      this.optimizer.update(x, this.meanEstimate);
+    } else {
+      throw new ValueError(
+          '.fit() called on `ZeroMean` layer with no optimizer.' +
+          '  ZeroMean must be configured with an optimizer to be fittable');
+    }
+  }
+}
+serialization.SerializationMap.register(ZeroMean);
+
 
 // `VocabLayerOptimizer` optimizes a `VocabularyLayer`.  It is implemented
 // external to the layer itself, mirroring how, e.g., `Dense` layers are
@@ -236,13 +342,10 @@ export class VocabLayer extends PreprocessingLayer {
 
   public build(inputShape: Shape|Shape[]): void {
     inputShape = type_utils.getExactlyOneShape(inputShape);
-    // console.log('VocabLayer.build');
     if (this.knownVocab == null && this.knownVocabSize &&
         this.knownVocabSize > 0) {
-      // console.log('VocabLayer.build -- apply vocabInitializer');
       const vocabTensor = this.vocabInitializer.apply(
                               [this.knownVocabSize], 'string') as StringTensor;
-      // console.log('VocabLayer initialization complete');
       this.knownVocab = new Map<string, number>();
       for (let i = 0; i < vocabTensor.size; i++) {
         this.knownVocab.set(vocabTensor.get(i), i);

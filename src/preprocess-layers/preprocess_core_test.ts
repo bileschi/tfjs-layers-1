@@ -22,7 +22,7 @@ import * as tfl from '../index';
 import {getInitializer} from '../initializers';
 import {describeMathCPUAndGPU, expectTensorsClose} from '../utils/test_utils';
 
-import {VocabLayer, VocabLayerOptimizer} from './preprocess_core';
+import {VocabLayer, VocabLayerOptimizer, ZeroMean, ZeroMeanOptimizer} from './preprocess_core';
 
 // tslint:enable:max-line-length
 
@@ -81,6 +81,46 @@ describeMathCPUAndGPU('OneHot Layer: Tensor', () => {
     const y = oneHotLayer.apply(x) as Tensor;
     expect([sampleInput.length, units]).toEqual(y.shape);
     const expectedOutput = zeros([sampleInput.length, units]);
+    expectTensorsClose(y, expectedOutput);
+  });
+});
+
+
+describeMathCPUAndGPU('ZeroMean Layer: Tensor', () => {
+  it('Unfit, performs no-op', () => {
+    const x = tensor2d([[0], [1], [2], [3], [4]], [5, 1], 'float32');
+    const zeroMeanLayer = tfl.layers.zeroMean({});
+    const y = zeroMeanLayer.apply(x) as Tensor;
+    expectTensorsClose(y, x);
+  });
+
+  it('fit on an input of avg 4', () => {
+    const x = tensor2d([[3.5], [4], [4.5]]);
+    const zeroMeanLayer =
+        tfl.layers.zeroMean({optimizer: new ZeroMeanOptimizer()}) as ZeroMean;
+    zeroMeanLayer.fitUnsupervised(x);
+    const y = zeroMeanLayer.apply(x) as Tensor;
+    const expectedOutput = tensor2d([[-0.5], [0.0], [0.5]]);
+    expectTensorsClose(y, expectedOutput);
+  });
+
+  it('mean of integers.', () => {
+    const x = tensor2d([[0], [50], [100]], [3, 1], 'int32');
+    const zeroMeanLayer =
+        tfl.layers.zeroMean({optimizer: new ZeroMeanOptimizer()}) as ZeroMean;
+    zeroMeanLayer.fitUnsupervised(x);
+    const y = zeroMeanLayer.apply(x) as Tensor;
+    const expectedOutput = tensor2d([[-50], [0], [50]]);
+    expectTensorsClose(y, expectedOutput);
+  });
+
+  it('multiple dim.', () => {
+    const x = tensor2d([[0, 1, 2], [0, 1, 2], [0, 1, 2]], [3, 3], 'int32');
+    const zeroMeanLayer =
+        tfl.layers.zeroMean({optimizer: new ZeroMeanOptimizer()}) as ZeroMean;
+    zeroMeanLayer.fitUnsupervised(x);
+    const y = zeroMeanLayer.apply(x) as Tensor;
+    const expectedOutput = zeros([3, 3]);
     expectTensorsClose(y, expectedOutput);
   });
 });

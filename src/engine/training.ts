@@ -1872,7 +1872,6 @@ export class Model extends Container {
       const returnCost = true;
       // Only do backprop-style optimization if there are trainable variables.
       if (variables.length === 0) {
-        console.log('no trainable variables');
         // TODO(bileschi): There may be a more appropriate return value here.
         return [scalar(0)].concat(metricsValues);
       } else {

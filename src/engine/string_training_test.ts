@@ -100,7 +100,6 @@ describeMathCPU('String Preproc Model.fit', () => {
         .then(history => {
           const testInputs = tfl.preprocessing.stringTensor2d(
               [['a', 'b'], ['c', 'd'], ['hello', 'world']]);
-          console.log('FIT COMPLETE');
           const testOutputs = vocabModel.predict(testInputs);
           test_util.expectArraysClose(
               testOutputs as Tensor,
@@ -141,7 +140,6 @@ describeMathCPU('String Preproc Model.fit', () => {
             .then(history => {
               const testInputs = tfl.preprocessing.stringTensor2d(
                   [['a', 'a'], ['a', 'a'], ['hello', 'world']]);
-              console.log('FIT COMPLETE');
               const testOutputs = vocabModel.predict(testInputs);
               test_util.expectArraysClose(
                   testOutputs as Tensor,
