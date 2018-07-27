@@ -13,7 +13,7 @@
  */
 
 // tslint:disable:max-line-length
-import {add, cast, div, oneHot, scalar, serialization, sub, Tensor, tensor, tidy, Variable, variable} from '@tensorflow/tfjs-core';
+import {add, cast, div, oneHot, scalar, serialization, sub, Tensor, tensor, tidy, Variable, variable, zerosLike} from '@tensorflow/tfjs-core';
 import {ConfigDict, Serializable} from '@tensorflow/tfjs-core/dist/serialization';
 
 import {Layer, LayerConfig} from '../engine/topology';
@@ -209,6 +209,126 @@ export class ZeroMean extends PreprocessingLayer {
       throw new ValueError(
           '.fit() called on `ZeroMean` layer with no optimizer.' +
           '  ZeroMean must be configured with an optimizer to be fittable');
+    }
+  }
+}
+serialization.SerializationMap.register(ZeroMean);
+
+export interface UnitVarianceConfig extends LayerConfig {
+  optimizer?: UnitVarianceOptimizer;
+}
+
+// Algorithm from
+// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+export class UnitVarianceOptimizer extends Serializable {
+  static className = 'UnitVarianceOptimizer';
+  public count: Variable;
+  public meanEstimate: Variable;
+  public m2: Variable;
+
+  constructor() {
+    super();
+    this.count = variable(scalar(0));
+    // Set these upon the first update to get the right shape.
+    this.meanEstimate = null;
+    // Intermediate storage for calculating variance.
+    this.m2 = null;
+  }
+
+  public update(x: Tensor, layerVariance: LayerVariable) {
+    if (this.meanEstimate == null) {
+      this.meanEstimate =
+          variable(x.mean(0, true), false, 'unitVarMean', 'float32');
+      this.m2 =
+          variable(zerosLike(this.meanEstimate), false, 'unitVarM2', 'float32');
+    }
+    tidy(() => {
+      // count += num_samples.
+      this.count.assign(add(this.count, x.shape[0]));
+      // delta = x - mean.
+      const delta = sub(x, this.meanEstimate);
+      // mean = mean + (delta / count).
+      this.meanEstimate.assign(
+          add(this.meanEstimate, div(delta, this.count).mean(0, true)));
+      // delta2 = x - mean.
+      const delta2 = sub(x, this.meanEstimate);
+      this.m2.assign(this.m2.add(delta.mul(delta2)).sum(0, true));
+      // variance = m2 / count
+      const variance = this.m2.div(this.count);
+      const varianceWithNoZero =
+          variance.add(cast(variance.equal(scalar(0.0)), variance.dtype));
+      layerVariance.write(varianceWithNoZero);
+    });
+  }
+
+  getConfig(): ConfigDict {
+    return {};
+  }
+
+  static fromConfig<T extends serialization.Serializable>(
+      cls: serialization.SerializableConstructor<T>,
+      config: serialization.ConfigDict): T {
+    return new cls();
+  }
+}
+
+export class UnitVariance extends PreprocessingLayer {
+  static className = 'UnitVariance';
+  // Estimate of sample variance.
+  private varianceEstimate: LayerVariable = null;
+  private varianceInitializer: Initializer;
+  protected optimizer: UnitVarianceOptimizer;
+
+  constructor(config: UnitVarianceConfig) {
+    super(config);
+    this.varianceInitializer = getInitializer('ones');
+    // Like Model, optimizer may be undefined here if it was not provided via
+    // config.
+    this.optimizer = config.optimizer;
+  }
+
+  public build(inputShape: Shape|Shape[]): void {
+    inputShape = type_utils.getExactlyOneShape(inputShape);
+    const varianceShape = inputShape.slice();
+    varianceShape[0] = 1;  // Reduce over batch dimension.
+    if (this.varianceEstimate == null) {
+      // Initial estimate of the variance is one.
+      this.varianceEstimate = this.addWeight(
+          'variance', varianceShape, 'float32', this.varianceInitializer, null,
+          true, null);
+    }
+    this.built = true;
+  }
+
+  call(inputs: Tensor|Tensor[], kwargs: Kwargs): Tensor|Tensor[] {
+    let inputTensor: Tensor;
+    if (Array.isArray(inputs)) {
+      if (inputs.length !== 1) {
+        throw new ValueError(
+            `UnitVariance layer expected one tensor input; got ${
+                inputs.length}`);
+      }
+      inputTensor = cast(inputs[0], 'float32');
+    } else {
+      inputTensor = cast(inputs, 'float32');
+    }
+    return tidy(() => {
+      return inputTensor.div(this.varianceEstimate.read().sqrt());
+    });
+  }
+
+  // TODO(bileschi): This should probably return a `History` or some other
+  // way of keeping track of what happens.
+  public fitUnsupervised(x: Tensor): void {
+    if (this.optimizer) {
+      if (!(this.built)) {
+        this.build(x.shape);
+      }
+      this.optimizer.update(x, this.varianceEstimate);
+    } else {
+      throw new ValueError(
+          '.fit() called on `UnitVariance` layer with no optimizer.' +
+          '  UnitVariance must be configured with an optimizer to be fittable');
     }
   }
 }

@@ -23,7 +23,8 @@ import {ZeroPadding2D, ZeroPadding2DLayerConfig} from './layers/padding';
 import {AveragePooling1D, AveragePooling2D, GlobalAveragePooling1D, GlobalAveragePooling2D, GlobalMaxPooling1D, GlobalMaxPooling2D, GlobalPooling2DLayerConfig, MaxPooling1D, MaxPooling2D, Pooling1DLayerConfig, Pooling2DLayerConfig} from './layers/pooling';
 import {GRU, GRUCell, GRUCellLayerConfig, GRULayerConfig, LSTM, LSTMCell, LSTMCellLayerConfig, LSTMLayerConfig, RNN, RNNCell, RNNLayerConfig, SimpleRNN, SimpleRNNCell, SimpleRNNCellLayerConfig, SimpleRNNLayerConfig, StackedRNNCells, StackedRNNCellsConfig} from './layers/recurrent';
 import {Bidirectional, BidirectionalLayerConfig, TimeDistributed, Wrapper, WrapperLayerConfig} from './layers/wrappers';
-import {OneHot, OneHotLayerConfig, VocabLayer, VocabLayerConfig, ZeroMean, ZeroMeanConfig} from './preprocess-layers/preprocess_core';
+import {OneHot, OneHotLayerConfig, UnitVariance, UnitVarianceConfig, VocabLayer, VocabLayerConfig, ZeroMean, ZeroMeanConfig} from './preprocess-layers/preprocess_core';
+
 
 // tslint:enable:max-line-length
 
@@ -688,12 +689,25 @@ export function oneHot(config: OneHotLayerConfig): Layer {
  *   heading: 'Layers',
  *   subheading: 'Preprocessing',
  *   namespace: 'layers',
- *   useDocsFrom: 'OneHotLayer',
+ *   useDocsFrom: 'ZeroMean',
  *   configParamIndices: [0]
  * }
  */
 export function zeroMean(config: ZeroMeanConfig): Layer {
   return new ZeroMean(config);
+}
+
+/**
+ * @doc {
+ *   heading: 'Layers',
+ *   subheading: 'Preprocessing',
+ *   namespace: 'layers',
+ *   useDocsFrom: 'UnitVariance',
+ *   configParamIndices: [0]
+ * }
+ */
+export function unitVariance(config: UnitVarianceConfig): Layer {
+  return new UnitVariance(config);
 }
 
 // Aliases for pooling.

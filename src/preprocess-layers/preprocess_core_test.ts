@@ -22,7 +22,7 @@ import * as tfl from '../index';
 import {getInitializer} from '../initializers';
 import {describeMathCPUAndGPU, expectTensorsClose} from '../utils/test_utils';
 
-import {VocabLayer, VocabLayerOptimizer, ZeroMean, ZeroMeanOptimizer} from './preprocess_core';
+import {UnitVariance, UnitVarianceOptimizer, VocabLayer, VocabLayerOptimizer, ZeroMean, ZeroMeanOptimizer} from './preprocess_core';
 
 // tslint:enable:max-line-length
 
@@ -121,6 +121,54 @@ describeMathCPUAndGPU('ZeroMean Layer: Tensor', () => {
     zeroMeanLayer.fitUnsupervised(x);
     const y = zeroMeanLayer.apply(x) as Tensor;
     const expectedOutput = zeros([3, 3]);
+    expectTensorsClose(y, expectedOutput);
+  });
+});
+
+describeMathCPUAndGPU('UnitVariance Layer: Tensor', () => {
+  it('Unfit, performs no-op', () => {
+    const x = tensor2d([[0], [1], [2], [3], [4]], [5, 1], 'float32');
+    const unitVarianceLayer = tfl.layers.unitVariance({});
+    const y = unitVarianceLayer.apply(x) as Tensor;
+    expectTensorsClose(y, x);
+  });
+
+  it('fit to an array of known variance', () => {
+    // Create a dataset with mean 20, standard deviation 10
+    const x = tensor2d([[10], [30], [10], [30]]);
+    const unitVarianceLayer =
+        tfl.layers.unitVariance({optimizer: new UnitVarianceOptimizer()}) as
+        UnitVariance;
+    unitVarianceLayer.fitUnsupervised(x);
+    const y = unitVarianceLayer.apply(x) as Tensor;
+    const expectedOutput = tensor2d([[1], [3], [1], [3]]);
+    expectTensorsClose(y, expectedOutput);
+  });
+
+  it('multiple dim are normalized independently', () => {
+    const x = tensor2d([
+      [-1, -10, -100, -300], [1, 10, 100, 300], [-1, -10, -100, -300],
+      [1, 10, 100, 300]
+    ]);
+    const unitVarianceLayer =
+        tfl.layers.unitVariance({optimizer: new UnitVarianceOptimizer()}) as
+        UnitVariance;
+    unitVarianceLayer.fitUnsupervised(x);
+    const y = unitVarianceLayer.apply(x) as Tensor;
+    const expectedOutput = tensor2d(
+        [[-1, -1, -1, -1], [1, 1, 1, 1], [-1, -1, -1, -1], [1, 1, 1, 1]]);
+    expectTensorsClose(y, expectedOutput);
+  });
+
+  it('Handles div by zero with grace', () => {
+    // Create a dataset with no variance
+    const x = tensor2d([[0, 10], [0, 10], [0, 10], [0, 10]]);
+    const unitVarianceLayer =
+        tfl.layers.unitVariance({optimizer: new UnitVarianceOptimizer()}) as
+        UnitVariance;
+    unitVarianceLayer.fitUnsupervised(x);
+    const y = unitVarianceLayer.apply(x) as Tensor;
+    const expectedOutput = tensor2d([[0, 10], [0, 10], [0, 10], [0, 10]]);
     expectTensorsClose(y, expectedOutput);
   });
 });
