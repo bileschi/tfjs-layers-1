@@ -1,13 +1,15 @@
 // Show off VocabLayer when  you get to this point.
 
 
-import {Tensor, tensor2d, test_util} from '@tensorflow/tfjs-core';
+// tslint:disable-next-line:max-line-length
+import {Tensor, tensor2d, test_util, randomNormal} from '@tensorflow/tfjs-core';
 import {expectValuesInRange} from '@tensorflow/tfjs-core/dist/test_util';
 
 import * as tfl from '../index';
 import {initializers} from '../index';
 import {getInitializer} from '../initializers';
-import {VocabLayerOptimizer} from '../preprocess-layers/preprocess_core';
+// tslint:disable-next-line:max-line-length
+import {VocabLayerOptimizer, UnitVarianceOptimizer, ZeroMeanOptimizer} from '../preprocess-layers/preprocess_core';
 import {describeMathCPU, describeMathCPUAndGPU} from '../utils/test_utils';
 import {expectTensorsClose} from '../utils/test_utils';
 
@@ -150,4 +152,43 @@ describeMathCPU('String Preproc Model.fit', () => {
               done.fail(err.stack);
             });
       });
+});
+
+
+describeMathCPU('Preprocess with zeroMean & unitVariance', () => {
+  it('Fit a model with two preprocessing layers.', async done => {
+    // Define a Sequential model with zeroMean & unitVariance
+    const normalizationModel = tfl.sequential({
+      layers: [tfl.layers.zeroMean({
+        optimizer: new ZeroMeanOptimizer(),
+        inputShape: [3]  // 3 numbers per example
+      }),
+      tfl.layers.unitVariance({
+          optimizer: new UnitVarianceOptimizer()
+      })]
+    });
+    // Compile the model.
+    // TODO(bileschi): It should be possible to compile with null / null
+    // here.
+    normalizationModel.compile({optimizer: 'SGD', loss: 'meanSquaredError'});
+    // 1000 random samples with mean 1234 and stddev 13.
+    const mean = 1234;
+    const std = 13;
+    const trainInputs = randomNormal([100, 3], mean, std);
+    // Fit the model to the provided samples.
+    await normalizationModel.fit(trainInputs, null, {batchSize: 10, epochs: 1})
+      .then(history => {
+        const testInputs = tensor2d(
+          [[mean - std, mean, mean + std]]);
+        const testOutputs = normalizationModel.predict(testInputs);
+        // Expect an accurate prediction of the stddev (within 1%)
+            test_util.expectArraysClose(
+              testOutputs as Tensor,
+              tensor2d([[-1, 0, 1]], [1, 3], 'float32'), 0.5);
+              done();
+      })
+      .catch(err => {
+        done.fail(err.stack);
+      });
+  });
 });

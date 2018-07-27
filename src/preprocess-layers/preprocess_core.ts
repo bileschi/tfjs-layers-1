@@ -121,14 +121,13 @@ export class ZeroMeanOptimizer extends Serializable {
 
   constructor() {
     super();
-    this.count = variable(scalar(0));
+    this.count = variable(scalar(0), false, null);
     this.meanEstimate = null;  // Set on first update to get the right shape.
   }
 
   public update(x: Tensor, layerMean: LayerVariable) {
     if (this.meanEstimate == null) {
-      this.meanEstimate =
-          variable(x.mean(0, true), false, 'optimizerMean', 'float32');
+      this.meanEstimate = variable(x.mean(0, true), false, null, 'float32');
     }
     tidy(() => {
       // count += num_samples.
@@ -176,7 +175,8 @@ export class ZeroMean extends PreprocessingLayer {
     if (this.meanEstimate == null) {
       // Initial estimate of the mean is zero
       this.meanEstimate = this.addWeight(
-          'mean', meanShape, 'float32', this.meanInitializer, null, true, null);
+          'mean', meanShape, 'float32', this.meanInitializer, null, false,
+          null);
     }
     this.built = true;
   }
@@ -237,10 +237,8 @@ export class UnitVarianceOptimizer extends Serializable {
 
   public update(x: Tensor, layerVariance: LayerVariable) {
     if (this.meanEstimate == null) {
-      this.meanEstimate =
-          variable(x.mean(0, true), false, 'unitVarMean', 'float32');
-      this.m2 =
-          variable(zerosLike(this.meanEstimate), false, 'unitVarM2', 'float32');
+      this.meanEstimate = variable(x.mean(0, true), false, null, 'float32');
+      this.m2 = variable(zerosLike(this.meanEstimate), false, null, 'float32');
     }
     tidy(() => {
       // count += num_samples.
@@ -252,9 +250,11 @@ export class UnitVarianceOptimizer extends Serializable {
           add(this.meanEstimate, div(delta, this.count).mean(0, true)));
       // delta2 = x - mean.
       const delta2 = sub(x, this.meanEstimate);
-      this.m2.assign(this.m2.add(delta.mul(delta2)).sum(0, true));
+      // m2 += delta * delta2
+      this.m2.assign(this.m2.add(delta.mul(delta2).sum(0, true)));
       // variance = m2 / count
       const variance = this.m2.div(this.count);
+      // Replace zeros with ones to avoid div-by-zero.
       const varianceWithNoZero =
           variance.add(cast(variance.equal(scalar(0.0)), variance.dtype));
       layerVariance.write(varianceWithNoZero);
@@ -281,6 +281,7 @@ export class UnitVariance extends PreprocessingLayer {
 
   constructor(config: UnitVarianceConfig) {
     super(config);
+    // Initial estimate of the variance is 1.0.
     this.varianceInitializer = getInitializer('ones');
     // Like Model, optimizer may be undefined here if it was not provided via
     // config.
@@ -292,10 +293,9 @@ export class UnitVariance extends PreprocessingLayer {
     const varianceShape = inputShape.slice();
     varianceShape[0] = 1;  // Reduce over batch dimension.
     if (this.varianceEstimate == null) {
-      // Initial estimate of the variance is one.
       this.varianceEstimate = this.addWeight(
           'variance', varianceShape, 'float32', this.varianceInitializer, null,
-          true, null);
+          false, null);
     }
     this.built = true;
   }
