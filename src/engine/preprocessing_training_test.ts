@@ -2,16 +2,17 @@
 
 
 // tslint:disable-next-line:max-line-length
-import {randomNormal, Tensor, tensor2d, test_util} from '@tensorflow/tfjs-core';
+import {randomNormal, Tensor, tensor2d, test_util, ones, zeros} from '@tensorflow/tfjs-core';
 import {expectValuesInRange} from '@tensorflow/tfjs-core/dist/test_util';
 
 import * as tfl from '../index';
 import {initializers} from '../index';
 import {getInitializer} from '../initializers';
 // tslint:disable-next-line:max-line-length
-import {UnitVarianceOptimizer, VocabLayerOptimizer, ZeroMeanOptimizer} from '../preprocess-layers/preprocess_core';
+import {UnitVarianceOptimizer, VocabLayerOptimizer, ZeroMeanOptimizer, ZeroMean} from '../preprocess-layers/preprocess_core';
 import {describeMathCPU, describeMathCPUAndGPU} from '../utils/test_utils';
 import {expectTensorsClose} from '../utils/test_utils';
+import {Sequential} from '../models';
 
 describeMathCPUAndGPU('String preproc : Model.predict', () => {
   it('basic model usage: Sequential predict', () => {
@@ -79,7 +80,7 @@ describeMathCPUAndGPU('String preproc : Model.predict', () => {
 });
 
 describeMathCPU('String Preproc Model.fit', () => {
-  it('Fit a model with just a vocab layer.', async done => {
+  fit('Fit a model with just a vocab layer.', async done => {
     // Define a Sequential model with just one layer:  Vocabulary.
     const vocabModel = tfl.sequential({
       layers: [tfl.layers.vocab({
@@ -87,7 +88,7 @@ describeMathCPU('String Preproc Model.fit', () => {
         hashVocabSize: 1,
         // TODO(bileschi): Use tfl.preprocessing.vocabLayerOptimizer instead
         // of direct access.
-        optimizer: new VocabLayerOptimizer(),
+        optimizer: new tfl.preprocessing.VocabLayerOptimizer(),
         inputShape: [2]  // two words per example
       })]
     });
@@ -170,7 +171,50 @@ describeMathCPU('Preprocess with zeroMean & unitVariance', () => {
     const testOutputs = normalizationModel.predict(testInputs);
     // Expect an accurate prediction of the stddev (within 1%)
     test_util.expectArraysClose(
-        testOutputs as Tensor, tensor2d([[-1, 0, 1]], [1, 3], 'float32'), 0.5);
+      testOutputs as Tensor, tensor2d([[-1, 0, 1]], [1, 3], 'float32'), 0.5);
     done();
   });
+
+  it('Fit a zero mean on image shaped data.', async done => {
+    // Define a Sequential model with zeroMean
+    const normalizationModel = tfl.sequential({
+      layers: [
+        tfl.layers.zeroMean({
+          optimizer: new ZeroMeanOptimizer(),
+          inputShape: [224, 224, 3]  // 3 numbers per example
+        })
+      ]
+    });
+    // Compile the model.
+    // TODO(bileschi): It should be possible to compile with null / null
+    // here.
+    normalizationModel.compile({optimizer: 'SGD', loss: 'meanSquaredError'});
+    // 1000 random samples with mean 1234 and stddev 13.
+    const trainInputs = ones([4, 224, 224, 3]);
+    // Fit the model to the provided samples.
+    await normalizationModel.fit(trainInputs, null, {batchSize: 10, epochs: 1});
+    const testInputs = ones([1, 224, 224, 3]);
+    const testOutputs = normalizationModel.predict(testInputs);
+    // Expect an accurate prediction of the stddev (within 1%)
+    test_util.expectArraysClose(
+      testOutputs as Tensor, zeros([1, 224, 224, 3]), 0.);
+    done();
+  });
+
+  it('Serialize and deserialize', () => {
+    const normalizationModel = tfl.sequential({
+      layers: [
+        tfl.layers.zeroMean({
+          optimizer: new ZeroMeanOptimizer(),
+          inputShape: [3]  // 3 numbers per example
+        }),
+        tfl.layers.unitVariance({optimizer: new UnitVarianceOptimizer()})
+      ]
+    });
+    const config = normalizationModel.getConfig();
+    const modelPrime = Sequential.fromConfig(Sequential, config) as Sequential;
+    expect(modelPrime.getConfig()).toEqual(normalizationModel.getConfig());
+    expect(modelPrime.layers[0] instanceof ZeroMean).toBe(true);
+  });
 });
+

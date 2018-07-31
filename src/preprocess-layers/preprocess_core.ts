@@ -332,7 +332,7 @@ export class UnitVariance extends PreprocessingLayer {
     }
   }
 }
-serialization.SerializationMap.register(ZeroMean);
+serialization.SerializationMap.register(UnitVariance);
 
 
 // `VocabLayerOptimizer` optimizes a `VocabularyLayer`.  It is implemented

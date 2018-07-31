@@ -10,8 +10,18 @@
 import {Rank, ShapeMap} from '@tensorflow/tfjs-core';
 
 // tslint:disable-next-line:max-line-length
+import {UnitVariance, UnitVarianceOptimizer, VocabLayer, VocabLayerOptimizer, ZeroMean, ZeroMeanOptimizer} from './preprocess-layers/preprocess_core';
+// tslint:disable-next-line:max-line-length
 import {PreprocessingExports, StringArray, StringTensor, StringTensor1D, StringTensor2D, StringTensor3D, StringTensor4D, StringTensor5D, StringTensor6D} from './preprocess-layers/string_tensor';
 
+export {
+  UnitVariance,
+  UnitVarianceOptimizer,
+  VocabLayer,
+  VocabLayerOptimizer,
+  ZeroMean,
+  ZeroMeanOptimizer
+};
 
 /**
  * @doc {

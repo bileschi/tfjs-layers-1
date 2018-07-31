@@ -41,3 +41,5 @@ export {
   preprocessing,
   regularizers
 };
+
+export const STAN = 'STAN BILESCHI';
